@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Alley Chase — Cat vs Mouse</title>
+<style>
+  :root{
+    --ink:#12101c;
+    --wall:#2b2440;
+    --wall-edge:#443768;
+    --path:#efe4c8;
+    --path-shadow:#d8c9a3;
+    --moon:#f6d982;
+    --accent:#e8734a;
+    --accent-2:#6fb8a3;
+    --paper:#f4ecd8;
+    --text-dark:#241c2e;
+  }
+  *{ box-sizing:border-box; }
+  html,body{
+    margin:0; padding:0; height:100%;
+    background: radial-gradient(ellipse at 50% -10%, #2a2246 0%, #16112a 55%, #0c0918 100%);
+    font-family: 'Georgia', 'Iowan Old Style', serif;
+    color: var(--paper);
+    overflow-x:hidden;
+  }
+  .stars{
+    position:fixed; inset:0; pointer-events:none; z-index:0;
+    background-image:
+      radial-gradient(1.5px 1.5px at 20% 30%, rgba(255,255,255,.5), transparent),
+      radial-gradient(1.5px 1.5px at 70% 15%, rgba(255,255,255,.4), transparent),
+      radial-gradient(1px 1px at 40% 70%, rgba(255,255,255,.35), transparent),
+      radial-gradient(1.5px 1.5px at 85% 60%, rgba(255,255,255,.4), transparent),
+      radial-gradient(1px 1px at 55% 85%, rgba(255,255,255,.3), transparent),
+      radial-gradient(1px 1px at 10% 80%, rgba(255,255,255,.3), transparent);
+    background-repeat: repeat;
+    background-size: 600px 600px;
+  }
+  .wrap{
+    position:relative; z-index:1;
+    max-width: 760px; margin: 0 auto;
+    padding: 22px 18px 40px;
+    display:flex; flex-direction:column; align-items:center;
+    min-height:100vh;
+  }
+  h1{
+    font-family: 'Palatino Linotype', Georgia, serif;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    font-size: clamp(1.6rem, 5vw, 2.4rem);
+    color: var(--moon);
+    margin: 6px 0 2px;
+    text-shadow: 0 0 18px rgba(246,217,130,0.35);
+  }
+  .tagline{
+    font-style: italic;
+    color: #cbbfe8;
+    font-size: 0.92rem;
+    margin-bottom: 14px;
+    opacity:0.85;
+  }
+  .hud{
+    display:flex; gap:10px; flex-wrap:wrap; justify-content:center;
+    width:100%; max-width: 560px;
+    margin-bottom: 12px;
+  }
+  .badge{
+    flex:1; min-width: 110px;
+    background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02));
+    border: 1px solid rgba(246,217,130,0.25);
+    border-radius: 10px;
+    padding: 8px 14px;
+    text-align:center;
+  }
+  .badge .label{
+    font-size: 0.65rem; text-transform:uppercase; letter-spacing:0.12em;
+    color:#b7a8db; display:block; margin-bottom:2px;
+  }
+  .badge .value{
+    font-size: 1.3rem; font-weight:700; color: var(--paper);
+    font-variant-numeric: tabular-nums;
+  }
+  .badge.timer .value{ color: var(--accent); }
+  .badge.timer.low .value{ color:#ff5b5b; animation: pulse 0.6s infinite; }
+  @keyframes pulse{ 0%,100%{ transform:scale(1);} 50%{ transform:scale(1.12);} }
+
+  .stage{
+    position:relative;
+    background: linear-gradient(145deg, #201936, #150f28);
+    border-radius: 18px;
+    padding: 14px;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.5), inset 0 0 0 1px rgba(246,217,130,0.15);
+  }
+  canvas{
+    display:block;
+    border-radius: 10px;
+    background: var(--path);
+    touch-action: none;
+  }
+
+  .controls{
+    margin-top:16px;
+    display:grid;
+    grid-template-columns: 56px 56px 56px;
+    grid-template-rows: 56px 56px 56px;
+    gap:6px;
+    user-select:none;
+  }
+  .ctrl-btn{
+    background: linear-gradient(180deg, #3a2f5c, #251d40);
+    border: 1px solid rgba(246,217,130,0.3);
+    border-radius: 12px;
+    color: var(--paper);
+    font-size: 1.3rem;
+    display:flex; align-items:center; justify-content:center;
+    cursor:pointer;
+    box-shadow: 0 3px 0 rgba(0,0,0,0.4);
+    transition: transform 0.05s;
+  }
+  .ctrl-btn:active{ transform: translateY(2px); box-shadow: 0 1px 0 rgba(0,0,0,0.4); }
+  .ctrl-up{ grid-column:2; grid-row:1; }
+  .ctrl-left{ grid-column:1; grid-row:2; }
+  .ctrl-down{ grid-column:2; grid-row:2; }
+  .ctrl-right{ grid-column:3; grid-row:2; }
+
+  .hint{
+    margin-top: 14px;
+    font-size: 0.82rem;
+    color:#b7a8db;
+    text-align:center;
+    max-width: 480px;
+    line-height:1.5;
+  }
+  .hint kbd{
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius:4px;
+    padding: 1px 6px;
+    font-family: inherit;
+  }
+
+  .overlay{
+    position:fixed; inset:0; z-index:5;
+    background: rgba(10,7,20,0.82);
+    backdrop-filter: blur(3px);
+    display:flex; align-items:center; justify-content:center;
+    padding: 20px;
+  }
+  .overlay.hidden{ display:none; }
+  .card{
+    background: linear-gradient(180deg, #26203e, #17122a);
+    border: 1px solid rgba(246,217,130,0.35);
+    border-radius: 18px;
+    padding: 32px 30px;
+    max-width: 420px;
+    width:100%;
+    text-align:center;
+    box-shadow: 0 24px 60px rgba(0,0,0,0.6);
+  }
+  .card .icon{ font-size: 3rem; margin-bottom: 6px; }
+  .card h2{
+    color: var(--moon); margin: 4px 0 8px;
+    font-size: 1.5rem;
+  }
+  .card p{
+    color: #d9cdf0; font-size: 0.95rem; margin: 0 0 18px; line-height:1.5;
+  }
+  .card button{
+    background: linear-gradient(180deg, var(--accent), #c85a35);
+    border: none; color: white;
+    font-family: inherit; font-weight:700; font-size: 1rem;
+    padding: 12px 28px; border-radius: 30px;
+    cursor:pointer;
+    box-shadow: 0 6px 0 #9c4527;
+    transition: transform 0.05s;
+  }
+  .card button:active{ transform: translateY(3px); box-shadow: 0 3px 0 #9c4527; }
+  .card .sub-btn{
+    display:block; margin: 14px auto 0; background:none; box-shadow:none;
+    color:#b7a8db; text-decoration:underline; font-weight:400; font-size:0.85rem;
+    padding: 4px;
+  }
+  .card .sub-btn:active{ transform:none; }
+
+  @media (max-width:480px){
+    .badge{ min-width: 90px; padding: 6px 8px; }
+    .badge .value{ font-size: 1.05rem; }
+  }
+</style>
+</head>
+<body>
+<div class="stars"></div>
+<div class="wrap">
+  <h1>🐾 Alley Chase</h1>
+  <div class="tagline">Ten twisting alleys stand between one hungry cat and supper.</div>
+
+  <div class="hud">
+    <div class="badge">
+      <span class="label">Level</span>
+      <span class="value" id="levelVal">1 / 10</span>
+    </div>
+    <div class="badge timer" id="timerBadge">
+      <span class="label">Time Left</span>
+      <span class="value" id="timeVal">30</span>
+    </div>
+    <div class="badge">
+      <span class="label">Caught</span>
+      <span class="value" id="caughtVal">0</span>
+    </div>
+  </div>
+
+  <div class="stage">
+    <canvas id="game" width="520" height="520"></canvas>
+  </div>
+
+  <div class="controls" id="controls">
+    <div class="ctrl-btn ctrl-up" data-dir="up">▲</div>
+    <div class="ctrl-btn ctrl-left" data-dir="left">◀</div>
+    <div class="ctrl-btn ctrl-down" data-dir="down">▼</div>
+    <div class="ctrl-btn ctrl-right" data-dir="right">▶</div>
+  </div>
+
+  <div class="hint">
+    Guide the cat 🐱 with <kbd>WASD</kbd> / <kbd>arrow keys</kbd> or the on-screen pad. Corner the mouse 🐭 before the alley clock runs out. Mazes get bigger and trickier every level — ten in all.
+  </div>
+</div>
+
+<div class="overlay hidden" id="overlay">
+  <div class="card">
+    <div class="icon" id="cardIcon">🐭</div>
+    <h2 id="cardTitle">Title</h2>
+    <p id="cardText">Text</p>
+    <button id="cardBtn">Continue</button>
+    <button class="sub-btn" id="cardSubBtn" style="display:none;">Restart from Level 1</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+  const levelVal = document.getElementById('levelVal');
+  const timeVal = document.getElementById('timeVal');
+  const timerBadge = document.getElementById('timerBadge');
+  const caughtVal = document.getElementById('caughtVal');
+  const overlay = document.getElementById('overlay');
+  const cardIcon = document.getElementById('cardIcon');
+  const cardTitle = document.getElementById('cardTitle');
+  const cardText = document.getElementById('cardText');
+  const cardBtn = document.getElementById('cardBtn');
+  const cardSubBtn = document.getElementById('cardSubBtn');
+
+  const TOTAL_LEVELS = 10;
+  const CANVAS_SIZE = 520;
+
+  let level = 1;
+  let caughtCount = 0;
+  let maze, cols, rows, cellSize;
+  let cat, mouse;
+  let timeLeft = 30;
+  let timerInterval = null;
+  let mouseMoveTimeout = null;
+  let gameActive = false;
+  let paused = false;
+
+  function levelDims(lvl){
+    // grows from 6x6 up to ~15x15
+    const n = Math.min(6 + Math.floor((lvl-1) * 1.0), 15);
+    return {c:n, r:n};
+  }
+  function levelTime(lvl, c, r){
+    // more time for bigger mazes, but tighter ratio as levels increase
+    const base = 14 + Math.round(c*r*0.42);
+    const squeeze = 1 - (lvl-1)*0.02;
+    return Math.max(18, Math.round(base * squeeze));
+  }
+  function mouseSpeed(lvl){
+    // ms between mouse moves - gets a little faster with level
+    return Math.max(340, 620 - lvl*26);
+  }
+  function mouseSmartness(lvl){
+    // probability mouse makes the "smart" (fleeing) move vs random
+    return Math.min(0.55 + lvl*0.045, 0.95);
+  }
+
+  // ---------- Maze generation (recursive backtracker) ----------
+  function generateMaze(c, r){
+    const cells = [];
+    for(let y=0;y<r;y++){
+      const row = [];
+      for(let x=0;x<c;x++){
+        row.push({x, y, walls:{N:true,S:true,E:true,W:true}, visited:false});
+      }
+      cells.push(row);
+    }
+    const stack = [];
+    let current = cells[0][0];
+    current.visited = true;
+    stack.push(current);
+
+    function neighbors(cell){
+      const list = [];
+      const {x,y} = cell;
+      if(y>0 && !cells[y-1][x].visited) list.push({dir:'N', opp:'S', cell:cells[y-1][x]});
+      if(y<r-1 && !cells[y+1][x].visited) list.push({dir:'S', opp:'N', cell:cells[y+1][x]});
+      if(x<c-1 && !cells[y][x+1].visited) list.push({dir:'E', opp:'W', cell:cells[y][x+1]});
+      if(x>0 && !cells[y][x-1].visited) list.push({dir:'W', opp:'E', cell:cells[y][x-1]});
+      return list;
+    }
+
+    while(stack.length){
+      current = stack[stack.length-1];
+      const opts = neighbors(current);
+      if(opts.length === 0){
+        stack.pop();
+        continue;
+      }
+      const choice = opts[Math.floor(Math.random()*opts.length)];
+      current.walls[choice.dir] = false;
+      choice.cell.walls[choice.opp] = false;
+      choice.cell.visited = true;
+      stack.push(choice.cell);
+    }
+
+    // add a few extra random openings for loop variety (keeps it from being too tree-like on later levels)
+    const extra = Math.floor(c*r*0.06);
+    for(let i=0;i<extra;i++){
+      const rx = Math.floor(Math.random()*c);
+      const ry = Math.floor(Math.random()*r);
+      const cell = cells[ry][rx];
+      const dirs = ['N','S','E','W'].filter(d=>{
+        if(d==='N') return ry>0;
+        if(d==='S') return ry<r-1;
+        if(d==='E') return rx<c-1;
+        if(d==='W') return rx>0;
+      });
+      const d = dirs[Math.floor(Math.random()*dirs.length)];
+      cell.walls[d] = false;
+      if(d==='N') cells[ry-1][rx].walls.S = false;
+      if(d==='S') cells[ry+1][rx].walls.N = false;
+      if(d==='E') cells[ry][rx+1].walls.W = false;
+      if(d==='W') cells[ry][rx-1].walls.E = false;
+    }
+
+    return cells;
+  }
+
+  function cellDistances(fromX, fromY){
+    // BFS distance map
+    const dist = [];
+    for(let y=0;y<rows;y++){ dist.push(new Array(cols).fill(-1)); }
+    dist[fromY][fromX] = 0;
+    const q = [[fromX,fromY]];
+    let qi = 0;
+    while(qi < q.length){
+      const [x,y] = q[qi++];
+      const cell = maze[y][x];
+      const d = dist[y][x];
+      const moves = [];
+      if(!cell.walls.N) moves.push([x,y-1]);
+      if(!cell.walls.S) moves.push([x,y+1]);
+      if(!cell.walls.E) moves.push([x+1,y]);
+      if(!cell.walls.W) moves.push([x-1,y]);
+      for(const [nx,ny] of moves){
+        if(dist[ny][nx] === -1){
+          dist[ny][nx] = d+1;
+          q.push([nx,ny]);
+        }
+      }
+    }
+    return dist;
+  }
+
+  function farthestCellFrom(x, y){
+    const dist = cellDistances(x,y);
+    let best = {x:cols-1, y:rows-1, d:-1};
+    for(let yy=0; yy<rows; yy++){
+      for(let xx=0; xx<cols; xx++){
+        if(dist[yy][xx] > best.d){
+          best = {x:xx, y:yy, d:dist[yy][xx]};
+        }
+      }
+    }
+    return best;
+  }
+
+  // ---------- Level setup ----------
+  function setupLevel(lvl){
+    const dims = levelDims(lvl);
+    cols = dims.c; rows = dims.r;
+    cellSize = Math.floor(CANVAS_SIZE / Math.max(cols, rows));
+    canvas.width = cellSize * cols;
+    canvas.height = cellSize * rows;
+
+    maze = generateMaze(cols, rows);
+    cat = {x:0, y:0, facing:'down'};
+    const far = farthestCellFrom(cat.x, cat.y);
+    mouse = {x:far.x, y:far.y};
+
+    timeLeft = levelTime(lvl, cols, rows);
+    levelVal.textContent = `${lvl} / ${TOTAL_LEVELS}`;
+    timeVal.textContent = timeLeft;
+    timerBadge.classList.remove('low');
+    caughtVal.textContent = caughtCount;
+
+    draw();
+    scheduleMouseMove();
+  }
+
+  function startTimer(){
+    clearInterval(timerInterval);
+    timerInterval = setInterval(()=>{
+      if(paused) return;
+      timeLeft--;
+      timeVal.textContent = Math.max(timeLeft,0);
+      if(timeLeft <= 8) timerBadge.classList.add('low');
+      if(timeLeft <= 0){
+        clearInterval(timerInterval);
+        loseLevel();
+      }
+    }, 1000);
+  }
+
+  function scheduleMouseMove(){
+    clearTimeout(mouseMoveTimeout);
+    mouseMoveTimeout = setTimeout(()=>{
+      if(gameActive && !paused) moveMouse();
+      scheduleMouseMove();
+    }, mouseSpeed(level));
+  }
+
+  function moveMouse(){
+    const cell = maze[mouse.y][mouse.x];
+    const moves = [];
+    if(!cell.walls.N) moves.push({x:mouse.x, y:mouse.y-1});
+    if(!cell.walls.S) moves.push({x:mouse.x, y:mouse.y+1});
+    if(!cell.walls.E) moves.push({x:mouse.x+1, y:mouse.y});
+    if(!cell.walls.W) moves.push({x:mouse.x-1, y:mouse.y});
+    if(moves.length === 0) return;
+
+    if(Math.random() < mouseSmartness(level)){
+      // choose move maximizing distance from cat
+      const dist = cellDistances(cat.x, cat.y);
+      let best = moves[0];
+      let bestD = -1;
+      for(const m of moves){
+        const d = dist[m.y][m.x];
+        if(d > bestD){ bestD = d; best = m; }
+      }
+      mouse.x = best.x; mouse.y = best.y;
+    } else {
+      const m = moves[Math.floor(Math.random()*moves.length)];
+      mouse.x = m.x; mouse.y = m.y;
+    }
+    draw();
+    checkCatch();
+  }
+
+  function moveCat(dir){
+    if(!gameActive || paused) return;
+    const cell = maze[cat.y][cat.x];
+    let nx = cat.x, ny = cat.y;
+    if(dir === 'up' && !cell.walls.N){ ny--; cat.facing='up'; }
+    else if(dir === 'down' && !cell.walls.S){ ny++; cat.facing='down'; }
+    else if(dir === 'left' && !cell.walls.W){ nx--; cat.facing='left'; }
+    else if(dir === 'right' && !cell.walls.E){ nx++; cat.facing='right'; }
+    else { return; }
+    cat.x = nx; cat.y = ny;
+    draw();
+    checkCatch();
+  }
+
+  function checkCatch(){
+    if(cat.x === mouse.x && cat.y === mouse.y){
+      winLevel();
+    }
+  }
+
+  function winLevel(){
+    gameActive = false;
+    clearInterval(timerInterval);
+    clearTimeout(mouseMoveTimeout);
+    caughtCount++;
+    caughtVal.textContent = caughtCount;
+
+    if(level >= TOTAL_LEVELS){
+      showCard('🏆', 'All Ten Alleys Cleared!', `The cat is thoroughly, gloriously full. You caught every mouse across all ${TOTAL_LEVELS} levels.`, 'Play Again', () => {
+        level = 1; caughtCount = 0; caughtVal.textContent = 0;
+        beginLevel(level);
+      }, false);
+    } else {
+      showCard('😸', `Level ${level} Complete!`, `Nicely pounced. The alley ahead is bigger and the mouse is quicker on its feet.`, `Start Level ${level+1}`, () => {
+        level++;
+        beginLevel(level);
+      }, false);
+    }
+  }
+
+  function loseLevel(){
+    gameActive = false;
+    clearInterval(timerInterval);
+    clearTimeout(mouseMoveTimeout);
+    showCard('🐭', "Time's Up — the Mouse Got Away", `The clock ran out before you cornered it. Try level ${level} again.`, 'Retry Level', () => {
+      beginLevel(level);
+    }, true, () => {
+      level = 1; caughtCount = 0; caughtVal.textContent = 0;
+      beginLevel(level);
+    });
+  }
+
+  function showCard(icon, title, text, btnLabel, onBtn, showSub, onSub){
+    cardIcon.textContent = icon;
+    cardTitle.textContent = title;
+    cardText.textContent = text;
+    cardBtn.textContent = btnLabel;
+    overlay.classList.remove('hidden');
+    cardBtn.onclick = () => { overlay.classList.add('hidden'); onBtn(); };
+    if(showSub){
+      cardSubBtn.style.display = 'inline-block';
+      cardSubBtn.onclick = () => { overlay.classList.add('hidden'); onSub(); };
+    } else {
+      cardSubBtn.style.display = 'none';
+    }
+  }
+
+  function beginLevel(lvl){
+    setupLevel(lvl);
+    gameActive = true;
+    paused = false;
+    startTimer();
+  }
+
+  // ---------- Drawing ----------
+  function draw(){
+    ctx.clearRect(0,0,canvas.width, canvas.height);
+
+    // floor
+    ctx.fillStyle = '#efe4c8';
+    ctx.fillRect(0,0,canvas.width, canvas.height);
+    // subtle cobblestone texture
+    ctx.fillStyle = 'rgba(216,201,163,0.5)';
+    for(let y=0;y<rows;y++){
+      for(let x=0;x<cols;x++){
+        if((x+y)%2===0){
+          ctx.fillRect(x*cellSize, y*cellSize, cellSize, cellSize);
+        }
+      }
+    }
+
+    // walls
+    ctx.strokeStyle = '#2b2440';
+    ctx.lineWidth = Math.max(3, cellSize*0.12);
+    ctx.lineCap = 'round';
+    ctx.fillStyle = '#2b2440';
+    for(let y=0;y<rows;y++){
+      for(let x=0;x<cols;x++){
+        const cell = maze[y][x];
+        const px = x*cellSize, py = y*cellSize;
+        ctx.beginPath();
+        if(cell.walls.N){ ctx.moveTo(px,py); ctx.lineTo(px+cellSize,py); }
+        if(cell.walls.S){ ctx.moveTo(px,py+cellSize); ctx.lineTo(px+cellSize,py+cellSize); }
+        if(cell.walls.W){ ctx.moveTo(px,py); ctx.lineTo(px,py+cellSize); }
+        if(cell.walls.E){ ctx.moveTo(px+cellSize,py); ctx.lineTo(px+cellSize,py+cellSize); }
+        ctx.stroke();
+      }
+    }
+
+    // goal glow under mouse
+    const mcx = mouse.x*cellSize + cellSize/2;
+    const mcy = mouse.y*cellSize + cellSize/2;
+    const grad = ctx.createRadialGradient(mcx,mcy,2, mcx,mcy, cellSize*0.8);
+    grad.addColorStop(0, 'rgba(246,217,130,0.55)');
+    grad.addColorStop(1, 'rgba(246,217,130,0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(mcx, mcy, cellSize*0.8, 0, Math.PI*2);
+    ctx.fill();
+
+    // mouse
+    const fontSize = Math.max(14, cellSize*0.62);
+    ctx.font = `${fontSize}px serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('🐭', mcx, mcy + fontSize*0.05);
+
+    // cat
+    const ccx = cat.x*cellSize + cellSize/2;
+    const ccy = cat.y*cellSize + cellSize/2;
+    ctx.font = `${fontSize*1.05}px serif`;
+    ctx.save();
+    ctx.translate(ccx, ccy);
+    if(cat.facing === 'left'){ ctx.scale(-1,1); }
+    ctx.fillText('🐱', 0, fontSize*0.05);
+    ctx.restore();
+  }
+
+  // ---------- Input ----------
+  window.addEventListener('keydown', (e)=>{
+    const key = e.key.toLowerCase();
+    let dir = null;
+    if(key === 'arrowup' || key === 'w') dir = 'up';
+    else if(key === 'arrowdown' || key === 's') dir = 'down';
+    else if(key === 'arrowleft' || key === 'a') dir = 'left';
+    else if(key === 'arrowright' || key === 'd') dir = 'right';
+    if(dir){
+      e.preventDefault();
+      moveCat(dir);
+    }
+  });
+
+  document.getElementById('controls').addEventListener('click', (e)=>{
+    const btn = e.target.closest('.ctrl-btn');
+    if(btn) moveCat(btn.dataset.dir);
+  });
+  // touch support (avoid double-fire with click on touch devices using pointerdown)
+  document.querySelectorAll('.ctrl-btn').forEach(btn=>{
+    btn.addEventListener('touchstart', (e)=>{
+      e.preventDefault();
+      moveCat(btn.dataset.dir);
+    }, {passive:false});
+  });
+
+  // pause timer/mouse when tab hidden to be fair to the player
+  document.addEventListener('visibilitychange', ()=>{
+    paused = document.hidden;
+  });
+
+  // ---------- Start ----------
+  beginLevel(level);
+})();
+</script>
+</body>
+</html>
